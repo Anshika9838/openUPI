@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Payment Gateway Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 26%),
+        radial-gradient(circle at top right, rgba(16, 185, 129, 0.10), transparent 24%),
+        linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+    }
+    .glass {
+      backdrop-filter: blur(22px);
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 24px 80px rgba(15, 23, 42, 0.10);
+    }
+    .input {
+      width: 100%;
+      border: 1px solid #e2e8f0;
+      border-radius: 1rem;
+      padding: 0.9rem 1rem;
+      background: #fff;
+      color: #0f172a;
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+    .input:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);
+      color: white;
+      box-shadow: 0 10px 24px rgba(79, 70, 229, 0.16);
+    }
+    .btn-secondary {
+      background: #fff;
+      color: #334155;
+      border: 1px solid #e2e8f0;
+    }
+    .btn-success {
+      background: linear-gradient(135deg, #10b981 0%, #22c55e 100%);
+      color: white;
+      box-shadow: 0 10px 24px rgba(16, 185, 129, 0.16);
+    }
+    .btn-danger {
+      background: linear-gradient(135deg, #fb7185 0%, #ef4444 100%);
+      color: white;
+      box-shadow: 0 10px 24px rgba(239, 68, 68, 0.16);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-radius: 9999px;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #475569;
+    }
+    .codebox {
+      border: 1px solid #e2e8f0;
+      border-radius: 1.25rem;
+      background: #fff;
+      color: #0f172a;
+      min-height: 420px;
+      padding: 1rem;
+      font-size: 0.85rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow: auto;
+    }
+    .status-chip {
+      transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+    }
+    .status-pending { background: #f8fafc; color: #475569; border-color: #cbd5e1; }
+    .status-success { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .status-failed { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .status-processing { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-900">
+  <main class="mx-auto min-h-screen w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <section class="glass rounded-[2rem] p-5 sm:p-7 lg:p-8">
+      <div class="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div class="pill mb-3">
+            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+            Demo checkout flow
+          </div>
+          <h1 class="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Test the payment flow with the same checkout design</h1>
+          <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+            Create an order, open the secure checkout page, ingest a transaction description, and verify the UTR using the same polished flow as the checkout screen.
+          </p>
+        </div>
+        <div id="statusPill" class="status-chip status-pending inline-flex items-center gap-2 self-start rounded-full border px-3 py-1.5 text-sm font-semibold">
+          <span class="h-2.5 w-2.5 rounded-full bg-current"></span>
+          <span id="statusText">PENDING</span>
+        </div>
+      </div>
+
+      <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div class="space-y-6">
+          <div class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div class="mb-5 flex items-center justify-between">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Initialize order</p>
+                <h2 class="mt-1 text-lg font-semibold text-slate-950">Create a checkout session</h2>
+              </div>
+              <div class="rounded-full bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                API
+              </div>
+            </div>
+
+            <div class="grid gap-4">
+              <div>
+                <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="baseUrl">API Base URL</label>
+                <input id="baseUrl" class="input" value="{{ baseURL }}" />
+              </div>
+
+              <div>
+                <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="amount">Amount</label>
+                <input id="amount" class="input" type="number" value="{{ demo_amount }}" />
+              </div>
+
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="merchantName">Merchant Name</label>
+                  <input id="merchantName" class="input" value="{{ merchant_name }}" />
+                </div>
+                <div>
+                  <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="upiId">UPI ID</label>
+                  <input id="upiId" class="input" value="{{ upi_id }}" />
+                </div>
+              </div>
+
+              <div>
+                <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="note">Description</label>
+                <input id="note" class="input" value="Demo checkout session" />
+              </div>
+            </div>
+
+            <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button id="btnCreate" class="btn-primary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
+                Create Order
+              </button>
+              <button id="btnOpen" class="btn-secondary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold" disabled>
+                Open Checkout
+              </button>
+              <button id="btnCopy" class="btn-secondary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold" disabled>
+                Copy Checkout URL
+              </button>
+            </div>
+          </div>
+
+          <div class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div class="mb-5 flex items-center justify-between">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Verification tools</p>
+                <h2 class="mt-1 text-lg font-semibold text-slate-950">Receiver server and UTR checks</h2>
+              </div>
+              <div class="rounded-full bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Secure
+              </div>
+            </div>
+
+            <div class="grid gap-4">
+              <div>
+                <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="apiKey">Transaction API Key</label>
+                <input id="apiKey" class="input" value="change-me-too" />
+              </div>
+              <div>
+                <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="transactionDescription">Transaction Description</label>
+                <textarea id="transactionDescription" class="input min-h-[110px]">UPI payment received a/c XX5549 INR 49999.00 on 23-04-26 16:33:53 Ref No UTR1234567890</textarea>
+              </div>
+              <div>
+                <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="utr">UTR to Verify</label>
+                <input id="utr" class="input" value="UTR1234567890" />
+              </div>
+            </div>
+
+            <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button id="btnVerify" class="btn-success inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold" disabled>
+                Send Verification
+              </button>
+              <button id="btnRefresh" class="btn-secondary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold" disabled>
+                Refresh Order
+              </button>
+              <button id="btnReset" class="btn-danger inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Current state</p>
+            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Order ID</p>
+                <p id="orderId" class="mt-2 break-all font-mono text-sm text-slate-900">Not created yet</p>
+              </div>
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</p>
+                <p id="statusValue" class="mt-2 text-sm font-semibold text-slate-900">pending</p>
+              </div>
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Checkout URL</p>
+                <p id="checkoutUrl" class="mt-2 break-all font-mono text-xs text-slate-700">-</p>
+              </div>
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Checkout Token</p>
+                <p id="checkoutToken" class="mt-2 break-all font-mono text-xs text-slate-700">-</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="space-y-6">
+          <div class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Response output</p>
+            <div id="output" class="codebox mt-4">Ready.</div>
+          </div>
+
+          <div class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Flow</p>
+            <ul class="mt-4 space-y-3 text-sm leading-6 text-slate-600">
+              <li class="flex gap-3"><span class="mt-1 h-2 w-2 rounded-full bg-emerald-500"></span><span>Create the order with amount, merchant name, UPI ID, and description.</span></li>
+              <li class="flex gap-3"><span class="mt-1 h-2 w-2 rounded-full bg-emerald-500"></span><span>Open the signed checkout session and confirm the QR page loads.</span></li>
+              <li class="flex gap-3"><span class="mt-1 h-2 w-2 rounded-full bg-emerald-500"></span><span>Send the transaction description to the protected ingest endpoint.</span></li>
+              <li class="flex gap-3"><span class="mt-1 h-2 w-2 rounded-full bg-emerald-500"></span><span>Submit the UTR and verify the order against the stored payment row.</span></li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const out = document.getElementById("output");
+    const state = {
+      order: null,
+      checkoutUrl: null,
+      checkoutToken: null,
+    };
+
+    const fields = {
+      baseUrl: document.getElementById("baseUrl"),
+      amount: document.getElementById("amount"),
+      merchantName: document.getElementById("merchantName"),
+      upiId: document.getElementById("upiId"),
+      note: document.getElementById("note"),
+      apiKey: document.getElementById("apiKey"),
+      transactionDescription: document.getElementById("transactionDescription"),
+      utr: document.getElementById("utr"),
+    };
+
+    const ui = {
+      orderId: document.getElementById("orderId"),
+      statusValue: document.getElementById("statusValue"),
+      checkoutUrl: document.getElementById("checkoutUrl"),
+      checkoutToken: document.getElementById("checkoutToken"),
+      statusPill: document.getElementById("statusPill"),
+      statusText: document.getElementById("statusText"),
+      btnCreate: document.getElementById("btnCreate"),
+      btnOpen: document.getElementById("btnOpen"),
+      btnVerify: document.getElementById("btnVerify"),
+      btnRefresh: document.getElementById("btnRefresh"),
+      btnReset: document.getElementById("btnReset"),
+      btnCopy: document.getElementById("btnCopy"),
+    };
+
+    function log(value) {
+      out.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    }
+
+    function apiBase() {
+      return fields.baseUrl.value.replace(/\/$/, "");
+    }
+
+    function updateStateFromOrder(order, checkoutUrl, checkoutToken) {
+      state.order = order || state.order;
+      state.checkoutUrl = checkoutUrl || state.checkoutUrl;
+      state.checkoutToken = checkoutToken || state.checkoutToken;
+
+      ui.orderId.textContent = state.order?.order_id || "Not created yet";
+      ui.statusValue.textContent = state.order?.verification_status || state.order?.status || "pending";
+      ui.checkoutUrl.textContent = state.checkoutUrl || "-";
+      ui.checkoutToken.textContent = state.checkoutToken ? `${state.checkoutToken.slice(0, 10)}...` : "-";
+
+      const enabled = Boolean(state.order?.order_id);
+      ui.btnOpen.disabled = !enabled;
+      ui.btnVerify.disabled = !enabled;
+      ui.btnRefresh.disabled = !enabled;
+      ui.btnCopy.disabled = !state.checkoutUrl;
+      ui.statusText.textContent = String(ui.statusValue.textContent || "pending").toUpperCase();
+      ui.statusPill.className = `status-chip status-${String(ui.statusValue.textContent || "pending").toLowerCase()} inline-flex items-center gap-2 self-start rounded-full border px-3 py-1.5 text-sm font-semibold`;
+    }
+
+    async function request(path, options = {}) {
+      const res = await fetch(apiBase() + path, {
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+        credentials: "include",
+        ...options,
+      });
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = text;
+      }
+      if (!res.ok) {
+        throw new Error(typeof data === "object" ? JSON.stringify(data, null, 2) : String(data));
+      }
+      return data;
+    }
+
+    async function createOrder() {
+      ui.btnCreate.disabled = true;
+      try {
+        const payload = {
+          amount: Number(fields.amount.value),
+          merchant_name: fields.merchantName.value.trim(),
+          upi_id: fields.upiId.value.trim(),
+          description: fields.note.value.trim(),
+        };
+        const result = await request("/api/orders", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+
+        updateStateFromOrder(result.order, result.checkout_url, result.checkout_token);
+        log({
+          step: "order_created",
+          order: result.order,
+          checkout_url: result.checkout_url,
+          checkout_token: result.checkout_token,
+        });
+      } catch (err) {
+        log({ error: err.message });
+      } finally {
+        ui.btnCreate.disabled = false;
+      }
+    }
+
+    async function openCheckout() {
+      if (!state.checkoutUrl) return;
+      const fullUrl = state.checkoutUrl.startsWith("http")
+        ? state.checkoutUrl
+        : apiBase() + state.checkoutUrl;
+      window.open(fullUrl, "_blank", "noopener,noreferrer");
+      log({
+        step: "checkout_opened",
+        checkout_url: fullUrl,
+      });
+    }
+
+    async function sendVerification() {
+      if (!state.order?.order_id) return;
+      try {
+        const ingest = await request("/api/payments/receive", {
+          method: "POST",
+          headers: { "X-API-Key": fields.apiKey.value.trim() },
+          body: JSON.stringify({
+            transaction_description: fields.transactionDescription.value.trim(),
+          }),
+        });
+        const result = await request(`/api/orders/${encodeURIComponent(state.order.order_id)}/verify-utr`, {
+          method: "POST",
+          body: JSON.stringify({
+            utr: fields.utr.value.trim(),
+          }),
+        });
+        if (result.matched) {
+          state.order.verification_status = "success";
+          state.order.status = "success";
+          state.order.status_message = "Payment verified successfully";
+          state.order.payment_reference = fields.utr.value.trim();
+          updateStateFromOrder(state.order);
+        } else {
+          updateStateFromOrder(state.order);
+        }
+        log({
+          step: "verification_sent",
+          transaction_ingest: ingest,
+          response: result,
+        });
+      } catch (err) {
+        log({ error: err.message });
+      }
+    }
+
+    async function refreshOrder() {
+      if (!state.order?.order_id) return;
+      try {
+        const result = await request(`/api/orders/${encodeURIComponent(state.order.order_id)}`);
+        updateStateFromOrder(result);
+        log({
+          step: "order_refreshed",
+          order: result,
+        });
+      } catch (err) {
+        log({ error: err.message });
+      }
+    }
+
+    async function copyCheckoutUrl() {
+      if (!state.checkoutUrl) return;
+      const fullUrl = state.checkoutUrl.startsWith("http")
+        ? state.checkoutUrl
+        : apiBase() + state.checkoutUrl;
+      await navigator.clipboard.writeText(fullUrl);
+      log({
+        step: "copied",
+        checkout_url: fullUrl,
+      });
+    }
+
+    function resetForm() {
+      fields.amount.value = "49999";
+      fields.merchantName.value = "Acme Corporation Pvt. Ltd.";
+      fields.upiId.value = "merchant@upi";
+      fields.note.value = "Demo checkout session";
+      fields.apiKey.value = "change-me-too";
+      fields.transactionDescription.value = "UPI payment received a/c XX5549 INR 49999.00 on 23-04-26 16:33:53 Ref No UTR1234567890";
+      fields.utr.value = "UTR1234567890";
+      state.order = null;
+      state.checkoutUrl = null;
+      state.checkoutToken = null;
+      updateStateFromOrder(null, null, null);
+      log("Ready.");
+    }
+
+    ui.btnCreate.onclick = () => createOrder().catch(err => log({ error: err.message }));
+    ui.btnOpen.onclick = () => openCheckout().catch(err => log({ error: err.message }));
+    ui.btnVerify.onclick = () => sendVerification().catch(err => log({ error: err.message }));
+    ui.btnRefresh.onclick = () => refreshOrder().catch(err => log({ error: err.message }));
+    ui.btnCopy.onclick = () => copyCheckoutUrl().catch(err => log({ error: err.message }));
+    ui.btnReset.onclick = resetForm;
+
+    updateStateFromOrder(null, null, null);
+  </script>
+</body>
+</html>

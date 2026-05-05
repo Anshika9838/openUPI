@@ -391,6 +391,16 @@ def build_payment_uri(order: dict) -> str:
 def home():
     return jsonify({"message": "PayNow checkout service is running", "status_endpoint": url_for("status")})
 
+@app.route("/demo")
+def demo():
+    return render_template(
+        "demo.html",
+        baseURL=url_for('home', _external=True),
+        demo_amount = 1,
+        merchant_name = "Aditya Chaudhari",
+        upi_id = "aditya463615@oksbi",
+    )
+
 
 @app.route("/api/status")
 def status():
