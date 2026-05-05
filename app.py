@@ -324,6 +324,43 @@ def public_payment(payment: dict) -> dict:
     return safe_payment
 
 
+def store_checkout_snapshot(order: dict) -> None:
+    session["checkout_order_snapshot"] = {
+        "order_id": order.get("order_id"),
+        "txn_id": order.get("txn_id"),
+        "amount": order.get("amount"),
+        "currency": order.get("currency", "INR"),
+        "merchant_name": order.get("merchant_name"),
+        "upi_id": order.get("upi_id"),
+        "note": order.get("note"),
+        "status": order.get("status", "pending"),
+        "verification_status": order.get("verification_status", "pending"),
+        "status_message": order.get("status_message", "Awaiting payment confirmation"),
+        "checkout_token_hash": order.get("checkout_token_hash"),
+        "created_at": order.get("created_at"),
+        "updated_at": order.get("updated_at"),
+        "metadata": order.get("metadata") or {},
+    }
+    session.modified = True
+
+
+def get_checkout_order(order_id: str) -> dict | None:
+    order = repository.get(order_id)
+    if order:
+        return order
+
+    snapshot = session.get("checkout_order_snapshot") or {}
+    if snapshot.get("order_id") == order_id:
+        # Rehydrate the repository so later lookups and updates can proceed.
+        repository.create(snapshot)
+        order = repository.get(order_id)
+        if order:
+            return order
+        return snapshot
+
+    return None
+
+
 def transaction_ingest_key() -> str | None:
     return os.getenv("TRANSACTION_INGEST_API_KEY") or os.getenv("WEBHOOK_SHARED_SECRET")
 
@@ -425,13 +462,14 @@ def create_order():
 @app.route("/checkout/<order_id>", methods=["GET", "POST"])
 @require_checkout_session
 def checkout(order_id: str):
-    order = repository.get(order_id)
+    order = get_checkout_order(order_id)
     if not order:
         abort(404)
 
     payment_uri = build_payment_uri(order)
     session["active_order_id"] = order_id
     session.permanent = True
+    store_checkout_snapshot(order)
 
     return render_template(
         "checkout.html",
@@ -444,7 +482,7 @@ def checkout(order_id: str):
 @app.route("/transaction/<order_id>")
 @require_checkout_session
 def transaction_result(order_id: str):
-    order = repository.get(order_id)
+    order = get_checkout_order(order_id)
     if not order:
         abort(404)
     return render_template("transaction_result.html", order=public_order(order))
@@ -453,7 +491,7 @@ def transaction_result(order_id: str):
 @app.route("/api/orders/<order_id>", methods=["GET"])
 @require_checkout_session
 def get_order(order_id: str):
-    order = repository.get(order_id)
+    order = get_checkout_order(order_id)
     if not order:
         return jsonify({"error": "Order not found"}), 404
     return jsonify(public_order(order))
@@ -516,9 +554,22 @@ def verify_utr(order_id: str):
     if not user_utr:
         return jsonify({"error": "UTR is required"}), 400
 
-    order = repository.get(order_id)
+    order = get_checkout_order(order_id)
     if not order:
         return jsonify({"error": "Order not found"}), 404
+
+    if (order.get("verification_status") or "").lower() == "success":
+        existing_reference = (order.get("payment_reference") or "").strip().upper()
+        if existing_reference and existing_reference != user_utr:
+            return jsonify({"error": "Verification failed"}), 409
+        if existing_reference == user_utr:
+            return jsonify(
+                {
+                    "message": "Order already verified",
+                    "matched": True,
+                    "already_verified": True,
+                }
+            )
 
     customer_patch = {
         "customer_name": customer_name or order.get("customer_name") or "",
@@ -535,12 +586,27 @@ def verify_utr(order_id: str):
                 "entered_utr": user_utr,
                 "verification_status": "pending",
                 "status": "pending",
-                "status_message": "UTR not found in payment_received.",
+                "status_message": "Unidentified UTR",
                 **customer_patch,
             },
         )
         publish_order_update(order)
-        return jsonify({"error": "UTR not found in payment_received", "order": public_order(order)}), 404
+        return jsonify({"error": "Unidentified UTR"}), 404
+
+    existing_verified_order = (payment.get("verified_order_id") or "").strip()
+    if existing_verified_order and existing_verified_order != order_id:
+        order = repository.update(
+            order_id,
+            {
+                "entered_utr": user_utr,
+                "verification_status": "pending",
+                "status": "pending",
+                "status_message": "UTR already used",
+                **customer_patch,
+            },
+        )
+        publish_order_update(order)
+        return jsonify({"error": "UTR already used"}), 409
 
     order_amount = float(order.get("amount") or 0)
     payment_amount = float(payment.get("amount") or 0)
@@ -551,7 +617,7 @@ def verify_utr(order_id: str):
                 "entered_utr": user_utr,
                 "verification_status": "pending",
                 "status": "pending",
-                "status_message": "UTR found but amount mismatch.",
+                "status_message": "Verification failed",
                 **customer_patch,
             },
         )
@@ -559,8 +625,6 @@ def verify_utr(order_id: str):
             user_utr,
             {
                 "verification_status": "rejected",
-                "order_id": order_id,
-                "verified_order_id": order_id,
                 "customer_name": customer_patch["customer_name"],
                 "customer_email": customer_patch["customer_email"],
                 "customer_mobile": customer_patch["customer_mobile"],
@@ -569,13 +633,7 @@ def verify_utr(order_id: str):
             },
         )
         publish_order_update(order)
-        return jsonify(
-            {
-                "error": "Amount mismatch between order and received payment",
-                "order": public_order(order),
-                "payment_received": public_payment(payment),
-            }
-        ), 422
+        return jsonify({"error": "Verification failed"}), 422
 
     order = repository.update(
         order_id,
@@ -609,8 +667,6 @@ def verify_utr(order_id: str):
         {
             "message": "UTR verification processed",
             "matched": True,
-            "order": public_order(order),
-            "payment_received": public_payment(payment_repository.get_by_utr(user_utr) or payment),
         }
     )
 
@@ -621,6 +677,10 @@ def simulate_verification(order_id: str):
     payload = request.get_json(silent=True) or {}
     status_value = (payload.get("status") or "success").lower()
     message = payload.get("message") or "Simulated verification event"
+    order = get_checkout_order(order_id)
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+
     order = repository.update(
         order_id,
         {
@@ -632,9 +692,6 @@ def simulate_verification(order_id: str):
             "verification_payload": {"source": "simulate", **payload},
         },
     )
-    if not order:
-        return jsonify({"error": "Order not found"}), 404
-
     publish_order_update(order)
     return jsonify({"message": "Simulation published", "order": public_order(order)})
 

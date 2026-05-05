@@ -228,9 +228,6 @@
                     Verify Payment
                   </button>
                 </div>
-                <p id="verifyHint" class="mt-3 text-xs leading-5 text-slate-500">
-                  If the bank transaction description hasn’t arrived yet, the request will stay pending until it does.
-                </p>
               </div>
 
               <div class="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
@@ -276,9 +273,6 @@
                   <a href="{{ url_for('transaction_result', order_id=order.order_id) }}" class="btn-dark inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
                     View receipt
                   </a>
-                  <button id="restartBtn" class="btn-secondary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
-                    New payment
-                  </button>
                 </div>
               </div>
             </div>
@@ -322,33 +316,31 @@
     </section>
   </main>
 
-  <div id="successModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
-    <div class="w-full max-w-md rounded-[2rem] border border-emerald-200 bg-white p-6 text-center shadow-2xl shadow-emerald-950/20">
-      <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-        <svg class="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+  <div id="statusModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+    <div id="statusModalCard" class="w-full max-w-md rounded-[2rem] border bg-white p-6 text-center shadow-2xl shadow-slate-950/20">
+      <div id="statusModalIconWrap" class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+        <svg id="statusModalIcon" class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
+          <path id="statusModalPath" stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
         </svg>
       </div>
-      <p class="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-600">Payment success</p>
-      <h3 class="mt-2 text-2xl font-semibold text-slate-950">Transaction verified</h3>
-      <p id="successModalText" class="mt-3 text-sm leading-6 text-slate-600">
-        Your payment has been verified and the order has been updated.
-      </p>
-      <div class="mt-5 grid gap-3 rounded-2xl bg-slate-50 p-4 text-left">
+      <p id="statusModalLabel" class="text-xs font-semibold uppercase tracking-[0.24em]"></p>
+      <h3 id="statusModalTitle" class="mt-2 text-2xl font-semibold text-slate-950"></h3>
+      <p id="statusModalText" class="mt-3 text-sm leading-6 text-slate-600"></p>
+      <div id="statusModalMeta" class="mt-5 hidden grid gap-3 rounded-2xl bg-slate-50 p-4 text-left">
         <div class="flex items-center justify-between gap-3">
           <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Order ID</span>
-          <span id="successOrderId" class="break-all font-mono text-xs font-semibold text-slate-800"></span>
+          <span id="statusModalOrderId" class="break-all font-mono text-xs font-semibold text-slate-800"></span>
         </div>
         <div class="flex items-center justify-between gap-3">
           <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">UTR</span>
-          <span id="successUtr" class="break-all font-mono text-xs font-semibold text-slate-800"></span>
+          <span id="statusModalUtr" class="break-all font-mono text-xs font-semibold text-slate-800"></span>
         </div>
       </div>
       <div class="mt-6 flex flex-col gap-3 sm:flex-row">
-        <a href="{{ url_for('transaction_result', order_id=order.order_id) }}" class="btn-dark inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
+        <a id="statusModalReceipt" href="{{ url_for('transaction_result', order_id=order.order_id) }}" class="btn-dark hidden inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
           View receipt
         </a>
-        <button id="closeSuccessModal" class="btn-secondary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
+        <button id="statusModalClose" class="btn-secondary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
           Close
         </button>
       </div>
@@ -364,7 +356,6 @@
     const step3 = document.getElementById("step3");
     const proceedBtn = document.getElementById("proceedBtn");
     const backBtn = document.getElementById("backBtn");
-    const restartBtn = document.getElementById("restartBtn");
     const verifyBtn = document.getElementById("verifyBtn");
     const paymentLink = document.getElementById("paymentLink");
     const statusPill = document.getElementById("statusPill");
@@ -372,15 +363,21 @@
     const statusMessage = document.getElementById("statusMessage");
     const connectionDot = document.getElementById("connectionDot");
     const connectionText = document.getElementById("connectionText");
-    const verifyHint = document.getElementById("verifyHint");
     const summaryName = document.getElementById("summaryName");
     const summaryEmail = document.getElementById("summaryEmail");
     const summaryStatus = document.getElementById("summaryStatus");
-    const successModal = document.getElementById("successModal");
-    const successModalText = document.getElementById("successModalText");
-    const successOrderId = document.getElementById("successOrderId");
-    const successUtr = document.getElementById("successUtr");
-    const closeSuccessModal = document.getElementById("closeSuccessModal");
+    const statusModal = document.getElementById("statusModal");
+    const statusModalCard = document.getElementById("statusModalCard");
+    const statusModalIconWrap = document.getElementById("statusModalIconWrap");
+    const statusModalIcon = document.getElementById("statusModalIcon");
+    const statusModalLabel = document.getElementById("statusModalLabel");
+    const statusModalTitle = document.getElementById("statusModalTitle");
+    const statusModalText = document.getElementById("statusModalText");
+    const statusModalMeta = document.getElementById("statusModalMeta");
+    const statusModalOrderId = document.getElementById("statusModalOrderId");
+    const statusModalUtr = document.getElementById("statusModalUtr");
+    const statusModalReceipt = document.getElementById("statusModalReceipt");
+    const statusModalClose = document.getElementById("statusModalClose");
     const fullName = document.getElementById("fullName");
     const email = document.getElementById("email");
     const mobile = document.getElementById("mobile");
@@ -441,43 +438,76 @@
       }
     }
 
-    function applyOrderPayload(payload) {
-      if (!payload) return;
-      order.verification_status = payload.verification_status || payload.status || order.verification_status;
-      order.status_message = payload.status_message || order.status_message;
-      setStatus(order.verification_status, order.status_message, payload.payment_reference ? `Reference: ${payload.payment_reference}` : "");
-      if ((order.verification_status || "").toLowerCase() === "success") {
-        setStep(3);
-        disconnectSocket();
-      } else if ((order.verification_status || "").toLowerCase() === "failed") {
-        setStep(2);
+    function showOutcomeModal(kind, title, message, options = {}) {
+      const styles = {
+        success: {
+          card: "border-emerald-200",
+          iconWrap: "bg-emerald-100 text-emerald-600",
+          label: "Payment success",
+          title: title || "Transaction verified",
+          text: message || "Your payment has been verified.",
+          icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>',
+        },
+        pending: {
+          card: "border-amber-200",
+          iconWrap: "bg-amber-100 text-amber-600",
+          label: "Verification pending",
+          title: title || "Please try again",
+          text: message || "The payment is not ready for verification yet.",
+          icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M10.29 3.86l-7.4 12.85A2 2 0 004.6 20h14.8a2 2 0 001.71-3.29l-7.4-12.85a2 2 0 00-3.42 0z"/>',
+        },
+        failed: {
+          card: "border-rose-200",
+          iconWrap: "bg-rose-100 text-rose-600",
+          label: "Verification failed",
+          title: title || "Unable to verify",
+          text: message || "We could not verify this payment.",
+          icon: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>',
+        },
+      };
+
+      const theme = styles[kind] || styles.failed;
+      statusModalCard.className = `w-full max-w-md rounded-[2rem] border bg-white p-6 text-center shadow-2xl shadow-slate-950/20 ${theme.card}`;
+      statusModalIconWrap.className = `mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${theme.iconWrap}`;
+      statusModalIcon.innerHTML = theme.icon;
+      statusModalLabel.textContent = theme.label;
+      statusModalTitle.textContent = theme.title;
+      statusModalText.textContent = theme.text;
+      if (options.orderId || options.utr) {
+        statusModalMeta.classList.remove("hidden");
+        statusModalOrderId.textContent = options.orderId || order.order_id || "";
+        statusModalUtr.textContent = options.utr || "";
+      } else {
+        statusModalMeta.classList.add("hidden");
+        statusModalOrderId.textContent = "";
+        statusModalUtr.textContent = "";
       }
+      if (kind === "success") {
+        statusModalReceipt.classList.remove("hidden");
+        statusModalReceipt.classList.add("inline-flex");
+      } else {
+        statusModalReceipt.classList.add("hidden");
+        statusModalReceipt.classList.remove("inline-flex");
+      }
+      statusModal.classList.remove("hidden");
+      statusModal.classList.add("flex");
     }
 
-    function showSuccessPopup(utr) {
-      successOrderId.textContent = order.order_id || "";
-      successUtr.textContent = utr || "";
-      successModalText.textContent = "Your payment has been verified and the user details have been linked to this transaction.";
-      successModal.classList.remove("hidden");
-      successModal.classList.add("flex");
-    }
-
-    function hideSuccessPopup() {
-      successModal.classList.add("hidden");
-      successModal.classList.remove("flex");
+    function hideOutcomeModal() {
+      statusModal.classList.add("hidden");
+      statusModal.classList.remove("flex");
     }
 
     async function verifyPayment() {
       const enteredUtr = utrInput.value.trim();
       if (!enteredUtr) {
         utrInput.classList.add("input-error");
-        verifyHint.textContent = "Please enter a UTR before verifying the payment.";
+        showOutcomeModal("pending", "UTR required", "Please enter your UTR before verifying.", { orderId: order.order_id });
         return;
       }
 
       verifyBtn.disabled = true;
       verifyBtn.textContent = "Verifying...";
-      verifyHint.textContent = "Submitting UTR to the backend...";
 
       try {
         const response = await fetch(`/api/orders/${encodeURIComponent(order.order_id)}/verify-utr`, {
@@ -496,19 +526,28 @@
           throw new Error(data.error || "Verification failed");
         }
 
-        applyOrderPayload(data.order);
         if (data.matched) {
-          verifyHint.textContent = "UTR matched. Payment verified.";
+          order.verification_status = "success";
+          order.status_message = "Payment verified successfully";
           setStep(3);
-          showSuccessPopup(enteredUtr);
+          setStatus("success", "Payment verified successfully");
+          showOutcomeModal("success", "Transaction verified", "Your payment has been verified and linked to this order.", {
+            orderId: order.order_id,
+            utr: enteredUtr,
+          });
           disconnectSocket();
-        } else if ((data.order?.verification_status || "").toLowerCase() === "pending") {
-          verifyHint.textContent = "UTR saved. Waiting for the transaction description from the server.";
-        } else {
-          verifyHint.textContent = "UTR did not match the parsed transaction reference.";
         }
       } catch (error) {
-        verifyHint.textContent = error.message || "Unable to verify payment.";
+        const raw = (error && error.message ? error.message : "").toLowerCase();
+        if (raw.includes("already verified")) {
+          showOutcomeModal("failed", "Already verified", "This order has already been verified.", { orderId: order.order_id });
+        } else if (raw.includes("already used")) {
+          showOutcomeModal("failed", "UTR already used", "This UTR cannot be used for another order.", { orderId: order.order_id, utr: enteredUtr });
+        } else if (raw.includes("unidentified") || raw.includes("not found")) {
+          showOutcomeModal("pending", "Unidentified UTR", "We could not match this UTR. Please check it and try again.", { orderId: order.order_id, utr: enteredUtr });
+        } else {
+          showOutcomeModal("failed", "Verification failed", "We could not complete verification right now.", { orderId: order.order_id, utr: enteredUtr });
+        }
       } finally {
         verifyBtn.disabled = false;
         verifyBtn.textContent = "Verify Payment";
@@ -545,11 +584,24 @@
       });
 
       socket.on("verification_update", (payload) => {
-        applyOrderPayload(payload);
+        if (!payload) return;
+        order.verification_status = payload.verification_status || payload.status || order.verification_status;
+        order.status_message = payload.status_message || order.status_message;
+        setStatus(order.verification_status, order.status_message);
+        if ((order.verification_status || "").toLowerCase() === "success") {
+          setStep(3);
+          showOutcomeModal("success", "Transaction verified", "Your payment has been verified and linked to this order.", {
+            orderId: order.order_id,
+            utr: order.entered_utr || "",
+          });
+          disconnectSocket();
+        }
       });
 
       socket.on("verification_error", (payload) => {
-        setStatus("failed", payload && payload.message ? payload.message : "Verification error");
+        showOutcomeModal("failed", "Verification error", payload && payload.message ? payload.message : "We could not verify this payment.", {
+          orderId: order.order_id,
+        });
       });
 
       socket.connect();
@@ -608,27 +660,16 @@
       disconnectSocket();
     });
 
-    restartBtn.addEventListener("click", () => {
-      fullName.value = order.customer_name || "";
-      email.value = order.customer_email || "";
-      mobile.value = "";
-      reference.value = order.note || "";
-      utrInput.value = "";
-      setStep(1);
-      setStatus("pending", "Awaiting payment confirmation");
-      verifyHint.textContent = "If the bank transaction description hasn’t arrived yet, the request will stay pending until it does.";
-      disconnectSocket();
-    });
 
     verifyBtn.addEventListener("click", (e) => {
       e.preventDefault();
       verifyPayment();
     });
 
-    closeSuccessModal.addEventListener("click", hideSuccessPopup);
-    successModal.addEventListener("click", (event) => {
-      if (event.target === successModal) {
-        hideSuccessPopup();
+    statusModalClose.addEventListener("click", hideOutcomeModal);
+    statusModal.addEventListener("click", (event) => {
+      if (event.target === statusModal) {
+        hideOutcomeModal();
       }
     });
 
@@ -637,3 +678,4 @@
   </script>
 </body>
 </html>
+

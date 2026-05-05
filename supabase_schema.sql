@@ -51,3 +51,4 @@ create table if not exists public.payment_received (
 
 create index if not exists payment_received_utr_idx on public.payment_received (utr);
 create index if not exists payment_received_verified_order_idx on public.payment_received (verified_order_id);
+create unique index if not exists payment_received_verified_order_unique_idx on public.payment_received (verified_order_id) where verified_order_id is not null;
