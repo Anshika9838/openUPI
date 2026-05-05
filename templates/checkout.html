@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Secure Checkout - PayNow</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      background:
+        radial-gradient(circle at top left, rgba(59, 130, 246, 0.12), transparent 26%),
+        radial-gradient(circle at top right, rgba(16, 185, 129, 0.10), transparent 24%),
+        linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+    }
+    .glass {
+      backdrop-filter: blur(22px);
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      box-shadow: 0 24px 80px rgba(15, 23, 42, 0.10);
+    }
+    .step {
+      transition: opacity 220ms ease, transform 220ms ease;
+    }
+    .step-hidden { opacity: 0; pointer-events: none; transform: translateX(18px); position: absolute; inset: 0; }
+    .step-active { opacity: 1; pointer-events: auto; transform: translateX(0); position: relative; }
+    .step-exit { opacity: 0; transform: translateX(-18px); }
+    .status-pill {
+      transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+    }
+    .status-pending { background: #f8fafc; color: #475569; border-color: #cbd5e1; }
+    .status-success { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .status-failed { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+    .status-processing { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .mono { font-variant-numeric: tabular-nums; }
+    .input {
+      width: 100%;
+      border: 1px solid #e2e8f0;
+      border-radius: 1rem;
+      padding: 0.9rem 1rem;
+      background: #fff;
+      color: #0f172a;
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }
+    .input:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+    }
+    .input-error {
+      border-color: #f87171;
+      box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.10);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);
+      color: white;
+      box-shadow: 0 10px 24px rgba(79, 70, 229, 0.16);
+    }
+    .btn-secondary {
+      background: #fff;
+      color: #334155;
+      border: 1px solid #e2e8f0;
+    }
+    .btn-dark {
+      background: #0f172a;
+      color: white;
+    }
+    .btn-primary:disabled,
+    .btn-secondary:disabled,
+    .btn-dark:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-900">
+  <main class="mx-auto flex min-h-screen w-full max-w-6xl items-center px-4 py-8 sm:px-6 lg:px-8">
+    <section class="glass w-full rounded-[2rem] p-5 sm:p-7 lg:p-8">
+      <div class="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div class="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
+            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+            Session protected checkout
+          </div>
+          <h1 class="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Review your details, then pay by QR or app</h1>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+            Step 1 collects checkout details. Step 2 shows the UPI QR and deep link. The page stays live until the server validates the payment.
+          </p>
+        </div>
+        <div id="statusPill" class="status-pill status-{{ order.verification_status | lower }} inline-flex items-center gap-2 self-start rounded-full border px-3 py-1.5 text-sm font-semibold">
+          <span class="h-2.5 w-2.5 rounded-full bg-current"></span>
+          <span id="statusText">{{ order.verification_status | default('pending') | upper }}</span>
+        </div>
+      </div>
+
+      <div class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <div class="space-y-6">
+          <div class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div class="min-w-0">
+                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Merchant</p>
+                <h2 class="mt-1 truncate text-xl font-semibold text-slate-950">{{ order.merchant_name }}</h2>
+                <p class="mt-2 text-sm text-slate-600">{{ order.note }}</p>
+              </div>
+              <div class="rounded-2xl bg-slate-50 px-4 py-3 text-right">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Amount</p>
+                <p class="mt-1 text-3xl font-semibold tracking-tight text-slate-950 mono">&#8377;{{ "%.2f" | format(order.amount | float) }}</p>
+                <p class="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">{{ order.currency }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="relative rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <!-- Step 1 -->
+            <div id="step1" class="step step-active">
+              <div class="mb-5 flex items-center justify-between">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Step 1</p>
+                  <h3 class="mt-1 text-lg font-semibold text-slate-950">Checkout details</h3>
+                </div>
+                <div class="rounded-full bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Details
+                </div>
+              </div>
+
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="fullName">Full name</label>
+                  <input id="fullName" class="input" value="{{ order.customer_name }}" placeholder="Enter full name">
+                </div>
+                <div>
+                  <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="email">Email</label>
+                  <input id="email" class="input" value="{{ order.customer_email }}" placeholder="name@example.com">
+                </div>
+                <div>
+                  <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="mobile">Mobile</label>
+                  <input id="mobile" class="input" inputmode="numeric" maxlength="10" placeholder="10 digit mobile number">
+                </div>
+                <div>
+                  <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="reference">Reference note</label>
+                  <input id="reference" class="input" value="{{ order.note }}" placeholder="Add a note">
+                </div>
+              </div>
+
+              <div class="mt-5 rounded-2xl bg-slate-50 p-4">
+                <div class="flex items-start gap-3">
+                  <span class="mt-1 h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                  <p class="text-sm leading-6 text-slate-600">
+                    After you continue, the QR and Open in UPI button will appear. The payment remains pending until the server sends a verification update.
+                  </p>
+                </div>
+              </div>
+
+              <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+                <button id="proceedBtn" class="btn-primary inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold">
+                  <span>Proceed to Payment</span>
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                  </svg>
+                </button>
+                <a href="{{ url_for('transaction_result', order_id=order.order_id) }}" class="btn-secondary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
+                  View receipt
+                </a>
+              </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div id="step2" class="step step-hidden">
+              <div class="mb-5 flex items-center justify-between">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Step 2</p>
+                  <h3 class="mt-1 text-lg font-semibold text-slate-950">Scan QR or open app</h3>
+                </div>
+                <div class="rounded-full bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Waiting
+                </div>
+              </div>
+
+              <div class="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+                <div class="grid gap-4 sm:grid-cols-[220px_1fr] sm:items-start">
+                  <div class="rounded-[1.25rem] border border-slate-200 bg-white p-3 shadow-sm">
+                    <div id="qrcode" class="flex items-center justify-center"></div>
+                  </div>
+                  <div class="space-y-3">
+                    <div class="rounded-2xl bg-white p-4">
+                      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Paying to</p>
+                      <p class="mt-1 text-sm font-semibold text-slate-900">{{ order.merchant_name }}</p>
+                      <p class="mt-1 text-xs text-slate-500 mono">{{ order.upi_id }}</p>
+                    </div>
+                    <div class="rounded-2xl bg-white p-4">
+                      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Amount</p>
+                      <p class="mt-1 text-xl font-semibold text-slate-900 mono">&#8377;{{ "%.2f" | format(order.amount | float) }}</p>
+                    </div>
+                    <div class="rounded-2xl bg-white p-4">
+                      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</p>
+                      <p id="statusMessage" class="mt-1 text-sm font-medium text-slate-700">{{ order.status_message }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-5 flex flex-col gap-3 sm:flex-row">
+                <a id="paymentLink" href="{{ payment_uri }}" target="_blank" class="btn-dark inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold">
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                  </svg>
+                  <span>Open in UPI app</span>
+                </a>
+                <button id="backBtn" class="btn-secondary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
+                  Back to details
+                </button>
+              </div>
+
+              <div class="mt-5 rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
+                <div class="mb-3">
+                  <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Verify payment</p>
+                  <p class="mt-1 text-sm text-slate-600">Enter the UTR shown in your bank or UPI receipt. We’ll compare it with the transaction description sent by the server.</p>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <div>
+                    <label class="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400" for="utrInput">UTR</label>
+                    <input id="utrInput" class="input" placeholder="Enter UTR / reference number">
+                  </div>
+                  <button id="verifyBtn" class="btn-primary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
+                    Verify Payment
+                  </button>
+                </div>
+                <p id="verifyHint" class="mt-3 text-xs leading-5 text-slate-500">
+                  If the bank transaction description hasn’t arrived yet, the request will stay pending until it does.
+                </p>
+              </div>
+
+              <div class="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Session status</p>
+                    <p class="mt-1 text-sm text-slate-600">We’re listening for a backend verification event for this order.</p>
+                  </div>
+                  <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                    <span id="connectionDot" class="h-2.5 w-2.5 rounded-full bg-slate-400"></span>
+                    <span id="connectionText">Connecting</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div id="step3" class="step step-hidden">
+              <div class="flex flex-col items-center justify-center py-8 text-center">
+                <div class="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/25">
+                  <svg class="h-10 w-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
+                    <path class="check-path" stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                  </svg>
+                </div>
+
+                <h2 class="text-xl font-bold text-slate-800">Payment verified</h2>
+                <p class="mt-2 max-w-md text-sm leading-6 text-slate-500">
+                  The server confirmed your payment. You can review the receipt or start another checkout.
+                </p>
+
+                <div class="mt-6 w-full rounded-2xl bg-slate-50 p-4 text-left">
+                  <div class="flex justify-between gap-3 border-b border-slate-200/70 pb-3">
+                    <span class="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">Transaction ID</span>
+                    <span id="txnId" class="text-xs font-mono font-semibold text-slate-700">{{ order.txn_id }}</span>
+                  </div>
+                  <div class="flex justify-between gap-3 pt-3">
+                    <span class="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">Amount</span>
+                    <span class="text-sm font-bold text-slate-800 mono">&#8377;{{ "%.2f" | format(order.amount | float) }}</span>
+                  </div>
+                </div>
+
+                <div class="mt-5 flex w-full flex-col gap-3 sm:flex-row">
+                  <a href="{{ url_for('transaction_result', order_id=order.order_id) }}" class="btn-dark inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
+                    View receipt
+                  </a>
+                  <button id="restartBtn" class="btn-secondary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
+                    New payment
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="space-y-6">
+          <div class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Transaction details</p>
+            <div class="mt-4 grid gap-4">
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Order ID</p>
+                <p class="mt-2 break-all font-mono text-sm text-slate-900">{{ order.order_id }}</p>
+              </div>
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Customer</p>
+                <p id="summaryName" class="mt-2 text-sm font-semibold text-slate-900">{{ order.customer_name }}</p>
+                <p id="summaryEmail" class="mt-1 break-all text-xs text-slate-500">{{ order.customer_email }}</p>
+              </div>
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Merchant UPI</p>
+                <p class="mt-2 break-all font-mono text-sm text-slate-900">{{ order.upi_id }}</p>
+              </div>
+              <div class="rounded-2xl bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Current status</p>
+                <p id="summaryStatus" class="mt-2 text-sm font-semibold text-slate-900">{{ order.verification_status | upper }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Security</p>
+            <ul class="mt-4 space-y-3 text-sm text-slate-600">
+              <li class="flex gap-3"><span class="mt-1 h-2 w-2 rounded-full bg-emerald-500"></span><span>Checkout access is tied to the signed Flask session cookie.</span></li>
+              <li class="flex gap-3"><span class="mt-1 h-2 w-2 rounded-full bg-emerald-500"></span><span>Payment status updates are pushed from the server over Socket.IO.</span></li>
+              <li class="flex gap-3"><span class="mt-1 h-2 w-2 rounded-full bg-emerald-500"></span><span>The page stays on the payment step until the backend validates the order.</span></li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <div id="successModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm">
+    <div class="w-full max-w-md rounded-[2rem] border border-emerald-200 bg-white p-6 text-center shadow-2xl shadow-emerald-950/20">
+      <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+        <svg class="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <p class="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-600">Payment success</p>
+      <h3 class="mt-2 text-2xl font-semibold text-slate-950">Transaction verified</h3>
+      <p id="successModalText" class="mt-3 text-sm leading-6 text-slate-600">
+        Your payment has been verified and the order has been updated.
+      </p>
+      <div class="mt-5 grid gap-3 rounded-2xl bg-slate-50 p-4 text-left">
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Order ID</span>
+          <span id="successOrderId" class="break-all font-mono text-xs font-semibold text-slate-800"></span>
+        </div>
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">UTR</span>
+          <span id="successUtr" class="break-all font-mono text-xs font-semibold text-slate-800"></span>
+        </div>
+      </div>
+      <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+        <a href="{{ url_for('transaction_result', order_id=order.order_id) }}" class="btn-dark inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
+          View receipt
+        </a>
+        <button id="closeSuccessModal" class="btn-secondary inline-flex items-center justify-center rounded-2xl px-5 py-3 text-sm font-semibold">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const order = {{ order | tojson }};
+    const paymentUri = {{ payment_uri | tojson }};
+
+    const step1 = document.getElementById("step1");
+    const step2 = document.getElementById("step2");
+    const step3 = document.getElementById("step3");
+    const proceedBtn = document.getElementById("proceedBtn");
+    const backBtn = document.getElementById("backBtn");
+    const restartBtn = document.getElementById("restartBtn");
+    const verifyBtn = document.getElementById("verifyBtn");
+    const paymentLink = document.getElementById("paymentLink");
+    const statusPill = document.getElementById("statusPill");
+    const statusText = document.getElementById("statusText");
+    const statusMessage = document.getElementById("statusMessage");
+    const connectionDot = document.getElementById("connectionDot");
+    const connectionText = document.getElementById("connectionText");
+    const verifyHint = document.getElementById("verifyHint");
+    const summaryName = document.getElementById("summaryName");
+    const summaryEmail = document.getElementById("summaryEmail");
+    const summaryStatus = document.getElementById("summaryStatus");
+    const successModal = document.getElementById("successModal");
+    const successModalText = document.getElementById("successModalText");
+    const successOrderId = document.getElementById("successOrderId");
+    const successUtr = document.getElementById("successUtr");
+    const closeSuccessModal = document.getElementById("closeSuccessModal");
+    const fullName = document.getElementById("fullName");
+    const email = document.getElementById("email");
+    const mobile = document.getElementById("mobile");
+    const reference = document.getElementById("reference");
+    const utrInput = document.getElementById("utrInput");
+    const qrcodeMount = document.getElementById("qrcode");
+
+    let activeStep = 1;
+    let socket = null;
+
+    new QRCode(qrcodeMount, {
+      text: paymentUri,
+      width: 208,
+      height: 208,
+      colorDark: "#0f172a",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.H,
+    });
+
+    paymentLink.href = paymentUri;
+
+    function setStep(nextStep) {
+      const current = document.getElementById(`step${activeStep}`);
+      const next = document.getElementById(`step${nextStep}`);
+      if (current && current !== next) {
+        current.classList.remove("step-active");
+        current.classList.add("step-exit");
+        setTimeout(() => {
+          current.classList.remove("step-exit");
+          current.classList.add("step-hidden");
+          next.classList.remove("step-hidden");
+          next.classList.add("step-active");
+        }, 180);
+      } else if (next) {
+        next.classList.remove("step-hidden");
+        next.classList.add("step-active");
+      }
+      activeStep = nextStep;
+    }
+
+    function setStatus(status, message, extra) {
+      const normalized = (status || "pending").toLowerCase();
+      statusPill.className = `status-pill status-${normalized} inline-flex items-center gap-2 self-start rounded-full border px-3 py-1.5 text-sm font-semibold`;
+      statusText.textContent = normalized.toUpperCase();
+      statusMessage.textContent = message || order.status_message || "Awaiting payment confirmation";
+      summaryStatus.textContent = normalized.toUpperCase();
+      if (extra) {
+        const existing = document.getElementById("paymentExtra");
+        if (!existing) {
+          const p = document.createElement("p");
+          p.id = "paymentExtra";
+          p.className = "mt-2 break-all text-xs text-slate-500 mono";
+          p.textContent = extra;
+          document.getElementById("step2").querySelector(".rounded-2xl.bg-white.p-4:last-child")?.appendChild(p);
+        } else {
+          existing.textContent = extra;
+        }
+      }
+    }
+
+    function applyOrderPayload(payload) {
+      if (!payload) return;
+      order.verification_status = payload.verification_status || payload.status || order.verification_status;
+      order.status_message = payload.status_message || order.status_message;
+      setStatus(order.verification_status, order.status_message, payload.payment_reference ? `Reference: ${payload.payment_reference}` : "");
+      if ((order.verification_status || "").toLowerCase() === "success") {
+        setStep(3);
+        disconnectSocket();
+      } else if ((order.verification_status || "").toLowerCase() === "failed") {
+        setStep(2);
+      }
+    }
+
+    function showSuccessPopup(utr) {
+      successOrderId.textContent = order.order_id || "";
+      successUtr.textContent = utr || "";
+      successModalText.textContent = "Your payment has been verified and the user details have been linked to this transaction.";
+      successModal.classList.remove("hidden");
+      successModal.classList.add("flex");
+    }
+
+    function hideSuccessPopup() {
+      successModal.classList.add("hidden");
+      successModal.classList.remove("flex");
+    }
+
+    async function verifyPayment() {
+      const enteredUtr = utrInput.value.trim();
+      if (!enteredUtr) {
+        utrInput.classList.add("input-error");
+        verifyHint.textContent = "Please enter a UTR before verifying the payment.";
+        return;
+      }
+
+      verifyBtn.disabled = true;
+      verifyBtn.textContent = "Verifying...";
+      verifyHint.textContent = "Submitting UTR to the backend...";
+
+      try {
+        const response = await fetch(`/api/orders/${encodeURIComponent(order.order_id)}/verify-utr`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            utr: enteredUtr,
+            customer_name: fullName.value.trim(),
+            customer_email: email.value.trim(),
+            customer_mobile: mobile.value.trim(),
+            reference_note: reference.value.trim(),
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Verification failed");
+        }
+
+        applyOrderPayload(data.order);
+        if (data.matched) {
+          verifyHint.textContent = "UTR matched. Payment verified.";
+          setStep(3);
+          showSuccessPopup(enteredUtr);
+          disconnectSocket();
+        } else if ((data.order?.verification_status || "").toLowerCase() === "pending") {
+          verifyHint.textContent = "UTR saved. Waiting for the transaction description from the server.";
+        } else {
+          verifyHint.textContent = "UTR did not match the parsed transaction reference.";
+        }
+      } catch (error) {
+        verifyHint.textContent = error.message || "Unable to verify payment.";
+      } finally {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = "Verify Payment";
+      }
+    }
+
+    function disconnectSocket() {
+      if (socket) {
+        socket.disconnect();
+        socket = null;
+      }
+      connectionDot.className = "h-2.5 w-2.5 rounded-full bg-slate-400";
+      connectionText.textContent = "Waiting";
+    }
+
+    function connectSocket() {
+      if (socket) return;
+
+      socket = io({
+        transports: ["polling"],
+        autoConnect: false,
+        auth: { order_id: order.order_id },
+      });
+
+      socket.on("connect", () => {
+        connectionDot.className = "h-2.5 w-2.5 rounded-full bg-emerald-500";
+        connectionText.textContent = "Connected";
+        socket.emit("subscribe_order", { order_id: order.order_id });
+      });
+
+      socket.on("disconnect", () => {
+        connectionDot.className = "h-2.5 w-2.5 rounded-full bg-slate-400";
+        connectionText.textContent = "Waiting";
+      });
+
+      socket.on("verification_update", (payload) => {
+        applyOrderPayload(payload);
+      });
+
+      socket.on("verification_error", (payload) => {
+        setStatus("failed", payload && payload.message ? payload.message : "Verification error");
+      });
+
+      socket.connect();
+    }
+
+    function validateStep1() {
+      const nameValue = fullName.value.trim();
+      const emailValue = email.value.trim();
+      const mobileValue = mobile.value.trim();
+
+      let valid = true;
+      for (const field of [fullName, email, mobile]) {
+        field.classList.remove("input-error");
+      }
+
+      if (!nameValue) {
+        fullName.classList.add("input-error");
+        valid = false;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+        email.classList.add("input-error");
+        valid = false;
+      }
+      if (!/^[6-9]\d{9}$/.test(mobileValue)) {
+        mobile.classList.add("input-error");
+        valid = false;
+      }
+
+      if (valid) {
+        summaryName.textContent = nameValue;
+        summaryEmail.textContent = emailValue;
+        setStatus(order.verification_status, order.status_message);
+      }
+
+      return valid;
+    }
+
+    mobile.addEventListener("input", function () {
+      this.value = this.value.replace(/\D/g, "").slice(0, 10);
+      this.classList.remove("input-error");
+    });
+    fullName.addEventListener("input", () => fullName.classList.remove("input-error"));
+    email.addEventListener("input", () => email.classList.remove("input-error"));
+
+    proceedBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!validateStep1()) return;
+      setStep(2);
+      setStatus("processing", "Use the QR or UPI app to complete the payment.");
+      connectSocket();
+    });
+
+    backBtn.addEventListener("click", () => {
+      setStep(1);
+      setStatus(order.verification_status, order.status_message);
+      disconnectSocket();
+    });
+
+    restartBtn.addEventListener("click", () => {
+      fullName.value = order.customer_name || "";
+      email.value = order.customer_email || "";
+      mobile.value = "";
+      reference.value = order.note || "";
+      utrInput.value = "";
+      setStep(1);
+      setStatus("pending", "Awaiting payment confirmation");
+      verifyHint.textContent = "If the bank transaction description hasn’t arrived yet, the request will stay pending until it does.";
+      disconnectSocket();
+    });
+
+    verifyBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      verifyPayment();
+    });
+
+    closeSuccessModal.addEventListener("click", hideSuccessPopup);
+    successModal.addEventListener("click", (event) => {
+      if (event.target === successModal) {
+        hideSuccessPopup();
+      }
+    });
+
+    window.addEventListener("beforeunload", disconnectSocket);
+    setStatus(order.verification_status, order.status_message);
+  </script>
+</body>
+</html>

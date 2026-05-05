@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Payment Gateway Demo</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --panel: rgba(10, 18, 34, 0.94);
+      --panel-2: #11213d;
+      --text: #e8eefc;
+      --muted: #93a4c3;
+      --accent: #38bdf8;
+      --accent-2: #34d399;
+      --danger: #fb7185;
+      --border: rgba(255,255,255,0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(56,189,248,0.18), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(52,211,153,0.12), transparent 28%),
+        linear-gradient(180deg, #050b15 0%, #09111f 100%);
+      padding: 24px;
+    }
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+    .hero, .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      box-shadow: 0 26px 72px rgba(0,0,0,0.34);
+      backdrop-filter: blur(10px);
+    }
+    .hero {
+      padding: 28px;
+      margin-bottom: 18px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(30px, 4vw, 44px);
+      letter-spacing: -0.03em;
+    }
+    p {
+      margin: 0;
+      color: #bfd0ef;
+      line-height: 1.6;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 18px;
+      align-items: start;
+    }
+    .card {
+      padding: 22px;
+    }
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    label {
+      display: block;
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    input, textarea, button {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 13px 14px;
+      font-size: 15px;
+    }
+    textarea {
+      min-height: 88px;
+      resize: vertical;
+    }
+    button {
+      cursor: pointer;
+      font-weight: 700;
+      border: 0;
+      transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease;
+    }
+    button:hover {
+      transform: translateY(-1px);
+    }
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .primary { background: linear-gradient(135deg, var(--accent), #60a5fa); color: #06111d; }
+    .secondary { background: rgba(255,255,255,0.04); border: 1px solid var(--border); }
+    .success { background: linear-gradient(135deg, var(--accent-2), #22c55e); color: #07111f; }
+    .danger { background: linear-gradient(135deg, #fb7185, #ef4444); color: white; }
+    pre {
+      margin: 0;
+      min-height: 520px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #07101d;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .hint {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(56,189,248,0.14);
+      color: #b6e9ff;
+      margin-bottom: 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .mini {
+      color: #91a7ca;
+      font-size: 13px;
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent);
+      margin: 16px 0;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .row button {
+      flex: 1 1 180px;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .pill {
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+    }
+    .pill span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+    .pill strong {
+      word-break: break-word;
+      font-size: 14px;
+    }
+    @media (max-width: 900px) {
+      .grid, .two, .actions, .meta { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="hint">Flask checkout demo</div>
+      <h1>Test the secure checkout flow end to end</h1>
+      <p>
+        This demo creates a real order through <code>/api/orders</code>, opens the session-protected checkout page,
+        and then sends a verification update so you can see the live status flow work.
+      </p>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="stack">
+          <div>
+            <label for="baseUrl">API Base URL</label>
+            <input id="baseUrl" value="http://127.0.0.1:5000" />
+          </div>
+
+          <div>
+            <label for="amount">Amount</label>
+            <input id="amount" type="number" value="49999" />
+          </div>
+
+          <div class="two">
+            <div>
+              <label for="merchantName">Merchant Name</label>
+              <input id="merchantName" value="Acme Corporation Pvt. Ltd." />
+            </div>
+            <div>
+              <label for="upiId">UPI ID</label>
+              <input id="upiId" value="merchant@upi" />
+            </div>
+          </div>
+
+          <div>
+            <label for="note">Description</label>
+            <input id="note" value="Demo checkout session" />
+          </div>
+
+          <details>
+            <summary style="cursor:pointer; color: var(--accent); font-weight: 700; list-style: none;">Verification tools</summary>
+            <div style="margin-top: 12px;" class="stack">
+              <div>
+                <label for="apiKey">Transaction API Key</label>
+                <input id="apiKey" value="change-me-too" />
+              </div>
+
+              <div>
+                <label for="transactionDescription">Transaction Description</label>
+                <textarea id="transactionDescription">UPI payment received a/c XX5549 INR 49999.00 on 23-04-26 16:33:53 Ref No UTR1234567890</textarea>
+              </div>
+
+              <div>
+                <label for="utr">UTR to Verify</label>
+                <input id="utr" value="UTR1234567890" />
+              </div>
+            </div>
+          </details>
+
+          <div class="actions">
+            <button class="primary" id="btnCreate">Create Order</button>
+            <button class="secondary" id="btnOpen" disabled>Open Checkout</button>
+            <button class="success" id="btnVerify" disabled>Send Verification</button>
+            <button class="secondary" id="btnRefresh" disabled>Refresh Order</button>
+            <button class="danger" id="btnReset">Reset</button>
+            <button class="secondary" id="btnCopy" disabled>Copy Checkout URL</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="meta">
+            <div class="pill">
+              <span>Order ID</span>
+              <strong id="orderId">Not created yet</strong>
+            </div>
+            <div class="pill">
+              <span>Status</span>
+              <strong id="statusValue">pending</strong>
+            </div>
+            <div class="pill">
+              <span>Checkout URL</span>
+              <strong id="checkoutUrl">-</strong>
+            </div>
+            <div class="pill">
+              <span>Checkout Token</span>
+              <strong id="checkoutToken">-</strong>
+            </div>
+          </div>
+
+          <div class="mini">
+            Flow: create order -> open checkout session -> send verification -> refresh stored order.
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <pre id="output">Ready.</pre>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const out = document.getElementById("output");
+    const state = {
+      order: null,
+      checkoutUrl: null,
+      checkoutToken: null,
+    };
+
+    const fields = {
+      baseUrl: document.getElementById("baseUrl"),
+      amount: document.getElementById("amount"),
+      merchantName: document.getElementById("merchantName"),
+      upiId: document.getElementById("upiId"),
+      note: document.getElementById("note"),
+      apiKey: document.getElementById("apiKey"),
+      transactionDescription: document.getElementById("transactionDescription"),
+      utr: document.getElementById("utr"),
+    };
+
+    const ui = {
+      orderId: document.getElementById("orderId"),
+      statusValue: document.getElementById("statusValue"),
+      checkoutUrl: document.getElementById("checkoutUrl"),
+      checkoutToken: document.getElementById("checkoutToken"),
+      btnCreate: document.getElementById("btnCreate"),
+      btnOpen: document.getElementById("btnOpen"),
+      btnVerify: document.getElementById("btnVerify"),
+      btnRefresh: document.getElementById("btnRefresh"),
+      btnReset: document.getElementById("btnReset"),
+      btnCopy: document.getElementById("btnCopy"),
+    };
+
+    function log(value) {
+      out.textContent = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    }
+
+    function apiBase() {
+      return fields.baseUrl.value.replace(/\/$/, "");
+    }
+
+    function updateStateFromOrder(order, checkoutUrl, checkoutToken) {
+      state.order = order || state.order;
+      state.checkoutUrl = checkoutUrl || state.checkoutUrl;
+      state.checkoutToken = checkoutToken || state.checkoutToken;
+
+      ui.orderId.textContent = state.order?.order_id || "Not created yet";
+      ui.statusValue.textContent = state.order?.verification_status || state.order?.status || "pending";
+      ui.checkoutUrl.textContent = state.checkoutUrl || "-";
+      ui.checkoutToken.textContent = state.checkoutToken ? `${state.checkoutToken.slice(0, 10)}...` : "-";
+
+      const enabled = Boolean(state.order?.order_id);
+      ui.btnOpen.disabled = !enabled;
+      ui.btnVerify.disabled = !enabled;
+      ui.btnRefresh.disabled = !enabled;
+      ui.btnCopy.disabled = !state.checkoutUrl;
+    }
+
+    async function request(path, options = {}) {
+      const res = await fetch(apiBase() + path, {
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+        credentials: "include",
+        ...options,
+      });
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = text;
+      }
+      if (!res.ok) {
+        throw new Error(typeof data === "object" ? JSON.stringify(data, null, 2) : String(data));
+      }
+      return data;
+    }
+
+    async function createOrder() {
+      ui.btnCreate.disabled = true;
+      try {
+        const payload = {
+          amount: Number(fields.amount.value),
+          merchant_name: fields.merchantName.value.trim(),
+          upi_id: fields.upiId.value.trim(),
+          description: fields.note.value.trim(),
+        };
+        const result = await request("/api/orders", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+
+        updateStateFromOrder(result.order, result.checkout_url, result.checkout_token);
+
+        const ingest = await request("/api/payments/receive", {
+          method: "POST",
+          headers: { "X-API-Key": fields.apiKey.value.trim() },
+          body: JSON.stringify({
+            transaction_description: fields.transactionDescription.value.trim(),
+          }),
+        });
+
+        const verify = await request(`/api/orders/${encodeURIComponent(result.order.order_id)}/verify-utr`, {
+          method: "POST",
+          body: JSON.stringify({
+            utr: fields.utr.value.trim(),
+          }),
+        });
+
+        updateStateFromOrder(verify.order, result.checkout_url, result.checkout_token);
+        log({
+          step: "order_created",
+          order: result.order,
+          checkout_url: result.checkout_url,
+          checkout_token: result.checkout_token,
+          transaction_ingest: ingest,
+          utr_verification: verify,
+        });
+      } catch (err) {
+        log({ error: err.message });
+      } finally {
+        ui.btnCreate.disabled = false;
+      }
+    }
+
+    async function openCheckout() {
+      if (!state.checkoutUrl) return;
+      const fullUrl = state.checkoutUrl.startsWith("http")
+        ? state.checkoutUrl
+        : apiBase() + state.checkoutUrl;
+      window.open(fullUrl, "_blank", "noopener,noreferrer");
+      log({
+        step: "checkout_opened",
+        checkout_url: fullUrl,
+        note: "The checkout page should load with the session token already validated.",
+      });
+    }
+
+    async function sendVerification() {
+      if (!state.order?.order_id) return;
+      try {
+        const ingest = await request("/api/payments/receive", {
+          method: "POST",
+          headers: { "X-API-Key": fields.apiKey.value.trim() },
+          body: JSON.stringify({
+            transaction_description: fields.transactionDescription.value.trim(),
+          }),
+        });
+        const result = await request(`/api/orders/${encodeURIComponent(state.order.order_id)}/verify-utr`, {
+          method: "POST",
+          body: JSON.stringify({
+            utr: fields.utr.value.trim(),
+          }),
+        });
+        updateStateFromOrder(result.order);
+        log({
+          step: "verification_sent",
+          transaction_ingest: ingest,
+          response: result,
+        });
+      } catch (err) {
+        log({ error: err.message });
+      }
+    }
+
+    async function refreshOrder() {
+      if (!state.order?.order_id) return;
+      try {
+        const result = await request(`/api/orders/${encodeURIComponent(state.order.order_id)}`);
+        updateStateFromOrder(result);
+        log({
+          step: "order_refreshed",
+          order: result,
+        });
+      } catch (err) {
+        log({ error: err.message });
+      }
+    }
+
+    async function copyCheckoutUrl() {
+      if (!state.checkoutUrl) return;
+      const fullUrl = state.checkoutUrl.startsWith("http")
+        ? state.checkoutUrl
+        : apiBase() + state.checkoutUrl;
+      await navigator.clipboard.writeText(fullUrl);
+      log({
+        step: "copied",
+        checkout_url: fullUrl,
+      });
+    }
+
+    function resetForm() {
+      fields.amount.value = "49999";
+      fields.merchantName.value = "Acme Corporation Pvt. Ltd.";
+      fields.upiId.value = "merchant@upi";
+      fields.note.value = "Demo checkout session";
+      fields.apiKey.value = "change-me-too";
+      fields.transactionDescription.value = "UPI payment received a/c XX5549 INR 49999.00 on 23-04-26 16:33:53 Ref No UTR1234567890";
+      fields.utr.value = "UTR1234567890";
+      state.order = null;
+      state.checkoutUrl = null;
+      state.checkoutToken = null;
+      updateStateFromOrder(null, null, null);
+      log("Ready.");
+    }
+
+    ui.btnCreate.onclick = () => createOrder().catch(err => log({ error: err.message }));
+    ui.btnOpen.onclick = () => openCheckout().catch(err => log({ error: err.message }));
+    ui.btnVerify.onclick = () => sendVerification().catch(err => log({ error: err.message }));
+    ui.btnRefresh.onclick = () => refreshOrder().catch(err => log({ error: err.message }));
+    ui.btnCopy.onclick = () => copyCheckoutUrl().catch(err => log({ error: err.message }));
+    ui.btnReset.onclick = resetForm;
+
+    updateStateFromOrder(null, null, null);
+  </script>
+</body>
+</html>

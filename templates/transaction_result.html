@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transaction Result - PayNow</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(180deg, #f8fafc 0%, #e0f2fe 100%);
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-900">
+  <main class="mx-auto flex min-h-screen w-full max-w-3xl items-center px-4 py-8">
+    <section class="w-full rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)] sm:p-8">
+      <div class="flex items-center gap-3">
+        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Transaction result</p>
+          <h1 class="text-2xl font-semibold tracking-tight text-slate-950">Current order snapshot</h1>
+        </div>
+      </div>
+
+      <div class="mt-8 grid gap-4 sm:grid-cols-2">
+        <div class="rounded-2xl bg-slate-50 p-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Order ID</p>
+          <p class="mt-2 font-mono text-sm text-slate-900">{{ order.order_id }}</p>
+        </div>
+        <div class="rounded-2xl bg-slate-50 p-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Transaction ID</p>
+          <p class="mt-2 font-mono text-sm text-slate-900">{{ order.txn_id }}</p>
+        </div>
+        <div class="rounded-2xl bg-slate-50 p-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Amount</p>
+          <p class="mt-2 text-xl font-semibold text-slate-900">&#8377;{{ "%.2f" | format(order.amount | float) }}</p>
+        </div>
+        <div class="rounded-2xl bg-slate-50 p-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Status</p>
+          <p class="mt-2 text-xl font-semibold text-slate-900">{{ order.verification_status | upper }}</p>
+        </div>
+      </div>
+
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Message</p>
+        <p class="mt-2 text-sm leading-6 text-slate-700">{{ order.status_message }}</p>
+      </div>
+
+      <div class="mt-8 flex flex-col gap-3 sm:flex-row">
+        <a href="{{ url_for('checkout', order_id=order.order_id) }}" class="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
+          Back to checkout
+        </a>
+        <button onclick="window.location.reload()" class="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+          Refresh status
+        </button>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

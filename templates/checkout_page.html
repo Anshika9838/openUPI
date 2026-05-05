@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checkout Page - PayNow</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900">
+  <main class="mx-auto flex min-h-screen max-w-3xl items-center px-4 py-10">
+    <section class="w-full rounded-[2rem] border border-slate-200 bg-white p-8 shadow-lg shadow-slate-200/50">
+      <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Checkout entry</p>
+      <h1 class="mt-2 text-3xl font-semibold tracking-tight">Use the session-backed checkout route</h1>
+      <p class="mt-4 max-w-2xl text-sm leading-6 text-slate-600">
+        This repository now uses the secure `/checkout/&lt;order_id&gt;?token=...` flow so the session can be authenticated before the payment UI loads.
+      </p>
+      <div class="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+        If you were expecting this page to render checkout details directly, route the request through the Flask view so the Supabase order row and session cookie can be verified first.
+      </div>
+    </section>
+  </main>
+</body>
+</html>
